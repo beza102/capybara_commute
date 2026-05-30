@@ -14,7 +14,7 @@ const CAPYBARA_Y: f32 = -200.0;
 
 const PASSENGER_SIZE: f32 = 28.0;
 const PASSENGER_SPAWN_INTERVAL: f32 = 1.8;
-const PASSENGER_FALL_SPEED: f32 = -180.0;
+const PASSENGER_FALL_SPEED: f32 = -120.0;
 
 const MAX_PASSENGERS: u32 = 8; // stack too high = topple!
 const TOPPLE_ANGLE_DEG: f32 = 35.0; // degrees tilt before game over
@@ -452,24 +452,27 @@ fn land_passengers(
     let cap_x = cap_transform.translation.x;
     let cap_y = cap_transform.translation.y;
 
+    // The "catch line" is the top surface of the capybara
+    let catch_line = cap_y + CAPYBARA_HEIGHT / 2.0;
+
     for (entity, mut passenger, p_transform, mut vel) in passengers.iter_mut() {
         if passenger.landed { continue; }
 
         let px = p_transform.translation.x;
         let py = p_transform.translation.y;
 
-        // Check if passenger has reached capybara height and is above it horizontally
-        let on_back_x = (px - cap_x).abs() < (CAPYBARA_WIDTH / 2.0 + PASSENGER_SIZE / 2.0 - 8.0);
-        let on_back_y = py <= cap_y + CAPYBARA_HEIGHT / 2.0 + PASSENGER_SIZE / 2.0 + 5.0
-            && py >= cap_y - CAPYBARA_HEIGHT / 2.0;
+        // Very generous X: anywhere over the capybara body
+        let over_capybara = (px - cap_x).abs() < CAPYBARA_WIDTH / 2.0 + 10.0;
 
-        if on_back_x && on_back_y {
+        // Tall catch window so fast passengers don't slip through
+        let at_catch_height = py <= catch_line + PASSENGER_SIZE && py >= catch_line - 40.0;
+
+        if over_capybara && at_catch_height {
             passenger.landed = true;
             passenger.stack_position = Some(game.passengers_on_board);
             game.passengers_on_board += 1;
             game.score += passenger.kind.score_value();
 
-            // Stop the passenger on landing
             vel.linvel = Vec2::ZERO;
             vel.angvel = 0.0;
 
@@ -488,6 +491,7 @@ fn update_balanced_passengers(
     mut passengers: Query<(&Passenger, &mut Transform), (With<Balanced>, Without<Capybara>)>,
 ) {
     let Ok(cap_t) = capybara.get_single() else { return };
+    let passenger_count = passengers.iter().count() as f32;
 
     for (passenger, mut p_transform) in passengers.iter_mut() {
         if let Some(slot) = passenger.stack_position {
@@ -497,8 +501,12 @@ fn update_balanced_passengers(
                 + PASSENGER_SIZE / 2.0
                 + slot as f32 * (PASSENGER_SIZE + 2.0);
 
-            // Distribute horizontally based on weight to show balance
-            let offset_x = (slot as f32 - 2.0) * 12.0;
+            // Center the group of landed passengers and spread them evenly.
+            let offset_x = if passenger_count > 0.0 {
+                (slot as f32 - (passenger_count - 1.0) * 0.5) * 12.0
+            } else {
+                0.0
+            };
 
             p_transform.translation.x = cap_t.translation.x + offset_x;
             p_transform.translation.y = stack_y;
