@@ -400,34 +400,10 @@ fn setup_ui(mut commands: Commands) {
 }
 
 fn setup_audio(mut commands: Commands, mut audio_assets: ResMut<Assets<AudioSource>>) {
-    // Short ascending "bloop" used as the base catch sound (pitch-shifted per type)
     let catch_wav = generate_wav(&[(523.25, 0.07), (783.99, 0.14)], 22050, 0.8);
     let catch_handle = audio_assets.add(AudioSource {
         bytes: Arc::from(catch_wav.as_slice()),
     });
-
-    // Simple pentatonic background music loop (C4 E4 G4 A4 ...)
-    let music_wav = generate_wav(
-        &[
-            (261.63, 0.4), (329.63, 0.4), (392.00, 0.4), (523.25, 0.4),
-            (440.00, 0.4), (392.00, 0.4), (329.63, 0.4), (261.63, 0.4),
-            (0.0, 0.3),
-        ],
-        22050,
-        0.22,
-    );
-    let music_handle = audio_assets.add(AudioSource {
-        bytes: Arc::from(music_wav.as_slice()),
-    });
-
-    commands.spawn(AudioBundle {
-        source: music_handle,
-        settings: PlaybackSettings {
-            mode: PlaybackMode::Loop,
-            ..default()
-        },
-    });
-
     commands.insert_resource(SoundAssets { catch: catch_handle });
 }
 
