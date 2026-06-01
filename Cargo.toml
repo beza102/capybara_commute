@@ -7,6 +7,7 @@ edition = "2021"
 bevy = { version = "0.14", features = ["default"] }
 bevy_rapier2d = { version = "0.27", features = ["debug-render-2d"] }
 rand = "0.8"
+hound = "3"
 
 # Enable optimizations for dependencies even in debug mode
 [profile.dev.package."*"]

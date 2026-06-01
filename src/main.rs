@@ -1,6 +1,9 @@
 use bevy::prelude::*;
+use bevy::audio::{AudioSource, PlaybackMode};
 use bevy_rapier2d::prelude::*;
 use rand::Rng;
+use std::sync::Arc;
+use hound;
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -117,6 +120,11 @@ impl Default for GameState {
     }
 }
 
+#[derive(Resource)]
+struct SoundAssets {
+    catch: Handle<AudioSource>,
+}
+
 // ─── States ──────────────────────────────────────────────────────────────────
 
 #[derive(States, Debug, Clone, PartialEq, Eq, Hash, Default)]
@@ -124,6 +132,40 @@ enum AppState {
     #[default]
     Playing,
     GameOver,
+}
+
+// Generates a mono 16-bit PCM WAV using hound (symphonia-compatible output).
+// Each note is (frequency_hz, duration_secs); frequency 0.0 = rest.
+fn generate_wav(notes: &[(f32, f32)], sample_rate: u32, volume: f32) -> Vec<u8> {
+    let spec = hound::WavSpec {
+        channels: 1,
+        sample_rate,
+        bits_per_sample: 16,
+        sample_format: hound::SampleFormat::Int,
+    };
+    let mut buf: Vec<u8> = Vec::new();
+    {
+        let cursor = std::io::Cursor::new(&mut buf);
+        let mut writer = hound::WavWriter::new(cursor, spec).unwrap();
+        for &(freq, dur) in notes {
+            let note_samples = (dur * sample_rate as f32) as u32;
+            for i in 0..note_samples {
+                let t = i as f32 / sample_rate as f32;
+                let envelope = if freq == 0.0 {
+                    0.0
+                } else {
+                    let attack = (t / 0.008).min(1.0);
+                    let release = ((dur - t) / 0.04).clamp(0.0, 1.0);
+                    attack * release
+                };
+                let sample = (f32::sin(2.0 * std::f32::consts::PI * freq * t)
+                    * volume * envelope * i16::MAX as f32) as i16;
+                writer.write_sample(sample).unwrap();
+            }
+        }
+        writer.finalize().unwrap();
+    } // cursor dropped here, releasing borrow on buf
+    buf
 }
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
@@ -143,7 +185,7 @@ fn main() {
         // .add_plugins(RapierDebugRenderPlugin::default())
         .init_state::<AppState>()
         .init_resource::<GameState>()
-        .add_systems(Startup, (setup_camera, setup_river, setup_capybara, setup_ui))
+        .add_systems(Startup, (setup_camera, setup_river, setup_capybara, setup_ui, setup_audio))
         .add_systems(
             Update,
             (
@@ -357,6 +399,38 @@ fn setup_ui(mut commands: Commands) {
     );
 }
 
+fn setup_audio(mut commands: Commands, mut audio_assets: ResMut<Assets<AudioSource>>) {
+    // Short ascending "bloop" used as the base catch sound (pitch-shifted per type)
+    let catch_wav = generate_wav(&[(523.25, 0.07), (783.99, 0.14)], 22050, 0.8);
+    let catch_handle = audio_assets.add(AudioSource {
+        bytes: Arc::from(catch_wav.as_slice()),
+    });
+
+    // Simple pentatonic background music loop (C4 E4 G4 A4 ...)
+    let music_wav = generate_wav(
+        &[
+            (261.63, 0.4), (329.63, 0.4), (392.00, 0.4), (523.25, 0.4),
+            (440.00, 0.4), (392.00, 0.4), (329.63, 0.4), (261.63, 0.4),
+            (0.0, 0.3),
+        ],
+        22050,
+        0.22,
+    );
+    let music_handle = audio_assets.add(AudioSource {
+        bytes: Arc::from(music_wav.as_slice()),
+    });
+
+    commands.spawn(AudioBundle {
+        source: music_handle,
+        settings: PlaybackSettings {
+            mode: PlaybackMode::Loop,
+            ..default()
+        },
+    });
+
+    commands.insert_resource(SoundAssets { catch: catch_handle });
+}
+
 // ─── Gameplay Systems ─────────────────────────────────────────────────────────
 
 fn move_capybara(
@@ -538,6 +612,7 @@ fn land_passengers(
     mut game: ResMut<GameState>,
     mut passengers: Query<(Entity, &mut Passenger, &Transform, &mut Velocity)>,
     capybara: Query<&Transform, With<Capybara>>,
+    sounds: Res<SoundAssets>,
 ) {
     let Ok(cap_transform) = capybara.get_single() else { return };
     let cap_x = cap_transform.translation.x;
@@ -568,6 +643,21 @@ fn land_passengers(
             vel.angvel = 0.0;
 
             commands.entity(entity).insert(Balanced);
+
+            // Pitch-shift the catch sound by passenger type
+            let pitch = match passenger.kind {
+                PassengerKind::Duckling => 1.0,
+                PassengerKind::Frog => 0.65,
+                PassengerKind::Butterfly => 1.5,
+            };
+            commands.spawn(AudioBundle {
+                source: sounds.catch.clone(),
+                settings: PlaybackSettings {
+                    mode: PlaybackMode::Despawn,
+                    speed: pitch,
+                    ..default()
+                },
+            });
         }
 
         // Fell off screen — despawn
