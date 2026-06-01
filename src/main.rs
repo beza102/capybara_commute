@@ -183,6 +183,7 @@ fn main() {
         .add_plugins(RapierPhysicsPlugin::<NoUserData>::pixels_per_meter(100.0))
         // Uncomment the next line for physics debug outlines:
         // .add_plugins(RapierDebugRenderPlugin::default())
+        .insert_resource(ClearColor(Color::srgb(0.18, 0.55, 0.78)))
         .init_state::<AppState>()
         .init_resource::<GameState>()
         .add_systems(Startup, (setup_camera, setup_river, setup_capybara, setup_ui, setup_audio))
@@ -638,7 +639,7 @@ fn land_passengers(
 
         // Fell off screen — despawn
         if py < -WINDOW_HEIGHT / 2.0 - 50.0 {
-            commands.entity(entity).despawn();
+            commands.entity(entity).despawn_recursive();
         }
     }
 }
@@ -829,7 +830,7 @@ fn restart_game(
 
     // Remove all passengers
     for entity in passengers.iter() {
-        commands.entity(entity).despawn();
+        commands.entity(entity).despawn_recursive();
     }
 
     // Reset capybara
