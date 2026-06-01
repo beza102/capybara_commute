@@ -412,24 +412,115 @@ fn spawn_passengers(
 
     let spawn_y = WINDOW_HEIGHT / 2.0 + PASSENGER_SIZE;
 
-    commands.spawn((
-        SpriteBundle {
-            sprite: Sprite {
-                color: kind.color(),
-                custom_size: Some(Vec2::new(PASSENGER_SIZE, PASSENGER_SIZE)),
+    commands
+        .spawn((
+            SpriteBundle {
+                sprite: Sprite {
+                    color: kind.color(),
+                    custom_size: Some(Vec2::new(PASSENGER_SIZE, PASSENGER_SIZE)),
+                    ..default()
+                },
+                transform: Transform::from_xyz(x, spawn_y, 1.0),
                 ..default()
             },
-            transform: Transform::from_xyz(x, spawn_y, 1.0),
-            ..default()
-        },
-        Passenger { kind, landed: false, stack_position: None },
-        RigidBody::Dynamic,
-        Collider::ball(PASSENGER_SIZE / 2.0),
-        GravityScale(0.0), // we control fall manually for better feel
-        Velocity::default(),
-        Restitution::coefficient(0.2),
-        Damping { linear_damping: 2.0, angular_damping: 5.0 },
-    ));
+            Passenger { kind, landed: false, stack_position: None },
+            RigidBody::Dynamic,
+            Collider::ball(PASSENGER_SIZE / 2.0),
+            GravityScale(0.0), // we control fall manually for better feel
+            Velocity::default(),
+            Restitution::coefficient(0.2),
+            Damping { linear_damping: 2.0, angular_damping: 5.0 },
+        ))
+        .with_children(|parent| {
+            // White outline border
+            parent.spawn(SpriteBundle {
+                sprite: Sprite {
+                    color: Color::WHITE,
+                    custom_size: Some(Vec2::new(PASSENGER_SIZE + 5.0, PASSENGER_SIZE + 5.0)),
+                    ..default()
+                },
+                transform: Transform::from_xyz(0.0, 0.0, -0.1),
+                ..default()
+            });
+            // Left eye
+            parent.spawn(SpriteBundle {
+                sprite: Sprite {
+                    color: Color::srgb(0.05, 0.05, 0.1),
+                    custom_size: Some(Vec2::new(5.0, 5.0)),
+                    ..default()
+                },
+                transform: Transform::from_xyz(-5.0, 4.0, 0.2),
+                ..default()
+            });
+            // Right eye
+            parent.spawn(SpriteBundle {
+                sprite: Sprite {
+                    color: Color::srgb(0.05, 0.05, 0.1),
+                    custom_size: Some(Vec2::new(5.0, 5.0)),
+                    ..default()
+                },
+                transform: Transform::from_xyz(5.0, 4.0, 0.2),
+                ..default()
+            });
+            // Type-specific detail
+            match kind {
+                PassengerKind::Duckling => {
+                    // Orange beak
+                    parent.spawn(SpriteBundle {
+                        sprite: Sprite {
+                            color: Color::srgb(1.0, 0.5, 0.0),
+                            custom_size: Some(Vec2::new(9.0, 5.0)),
+                            ..default()
+                        },
+                        transform: Transform::from_xyz(0.0, -3.0, 0.2),
+                        ..default()
+                    });
+                }
+                PassengerKind::Frog => {
+                    // Bulgy eye rings (lighter green circles behind the eyes)
+                    parent.spawn(SpriteBundle {
+                        sprite: Sprite {
+                            color: Color::srgb(0.4, 0.95, 0.5),
+                            custom_size: Some(Vec2::new(9.0, 9.0)),
+                            ..default()
+                        },
+                        transform: Transform::from_xyz(-5.0, 5.0, 0.1),
+                        ..default()
+                    });
+                    parent.spawn(SpriteBundle {
+                        sprite: Sprite {
+                            color: Color::srgb(0.4, 0.95, 0.5),
+                            custom_size: Some(Vec2::new(9.0, 9.0)),
+                            ..default()
+                        },
+                        transform: Transform::from_xyz(5.0, 5.0, 0.1),
+                        ..default()
+                    });
+                }
+                PassengerKind::Butterfly => {
+                    // Left wing
+                    parent.spawn(SpriteBundle {
+                        sprite: Sprite {
+                            color: Color::srgba(0.95, 0.55, 1.0, 0.85),
+                            custom_size: Some(Vec2::new(18.0, 12.0)),
+                            ..default()
+                        },
+                        transform: Transform::from_xyz(-18.0, 3.0, -0.05),
+                        ..default()
+                    });
+                    // Right wing
+                    parent.spawn(SpriteBundle {
+                        sprite: Sprite {
+                            color: Color::srgba(0.95, 0.55, 1.0, 0.85),
+                            custom_size: Some(Vec2::new(18.0, 12.0)),
+                            ..default()
+                        },
+                        transform: Transform::from_xyz(18.0, 3.0, -0.05),
+                        ..default()
+                    });
+                }
+            }
+        });
 }
 
 fn move_falling_passengers(
